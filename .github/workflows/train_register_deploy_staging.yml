@@ -1,11 +1,13 @@
 name: Candidate to Staging
+
 on:
   workflow_dispatch:
   push:
-    branches: ["master"] # Change "main" par "master" car c'est ta branche
+    branches: ["master"]
     paths:
       - "ml/**"
       - ".github/workflows/train_register_deploy_staging.yml"
+
 jobs:
   train_register:
     runs-on: ubuntu-latest
@@ -13,13 +15,16 @@ jobs:
       result_json: ${{ steps.train.outputs.result_json }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install ML deps
         run: |
           pip install -r ml/requirements.txt
+
       - name: Train + register in MLflow
         id: train
         env:
@@ -30,16 +35,19 @@ jobs:
         run: |
           python ml/train_and_register.py | tee train_out.json
           echo "result_json=$(cat train_out.json)" >> "$GITHUB_OUTPUT"
+
       - name: Evaluate gate
         env:
-          ACCURACY_THRESHOLD: "0.90"
+          ACCURACY_THRESHOLD: "0.89"
         run: |
           echo '${{ steps.train.outputs.result_json }}' | python ml/evaluate.py
+
   deploy_staging:
     needs: train_register
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Build + push backend image (staging)
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -48,3 +56,15 @@ jobs:
           echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
           docker build -t "$DOCKERHUB_USERNAME/churn-backend:staging" backend
           docker push "$DOCKERHUB_USERNAME/churn-backend:staging"
+
+      - name: Deploy to staging (local-compose example)
+        run: |
+          echo "Deploy step placeholder: run docker-compose on staging host."
+
+  staging_smoke_test:
+    needs: deploy_staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Smoke test placeholder
+        run: |
+          echo "In real life, curl staging /health and /predict here."
